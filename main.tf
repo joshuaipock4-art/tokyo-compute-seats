@@ -30,7 +30,7 @@ resource "ibm_compute_bare_metal" "tokyo_compute_seats" {
   os_reference_code    = "UBUNTU_22_64"
   datacenter           = "tok02" # IBM's Tokyo Datacenter
   network_speed        = 1000    # 1 Gbps connection for low latency
-  hourly_billing       = false   # Set up for monthly/weekly seat rentals
+  hourly_billing       = true    # Changed to hourly billing
   private_network_only = false
   
   # Standard baseline hardware preset for bare-metal
