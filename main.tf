@@ -1,9 +1,8 @@
-# 1. Define the IBM Provider
 terraform {
   required_providers {
     ibm = {
       source  = "IBM-Cloud/ibm"
-      version = "~> 1.60"
+      version = ">= 1.51.0"
     }
   }
 }
@@ -12,33 +11,82 @@ provider "ibm" {
   region = "jp-tok"
 }
 
-# 2. Install Your Master SSH Keys (The Padlocks)
-resource "ibm_compute_ssh_key" "chromebook_key" {
-  label      = "chromebook-master"
-  public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFJ/Bx8TuroZ+uDiqUzn6qi3KTlKv4vTqLHtbHnYtZil ibm-tokyo-server"
+# Data source to fetch the existing SSH key labeled 'termux-mobile'
+data "ibm_compute_ssh_key" "termux_mobile" {
+  label = "termux-mobile"
 }
 
-resource "ibm_compute_ssh_key" "termux_key" {
-  label      = "termux-mobile"
-  public_key = "ssh-ed25519 AAAAC3NzaC11ZDI1NTE5AAAAIP/pkK3kcLFZeVt6XbzrwGhOAGybceI0K1a9yYxJDEFS termux-mobile"
-}
-
-# 3. Order the Bare Metal Server in Tokyo
-resource "ibm_compute_bare_metal" "tokyo_compute_seats" {
-  hostname             = "tokyo-seats"
-  domain               = "truecare.local"
-  os_reference_code    = "UBUNTU_22_64"
-  datacenter           = "tok02" # IBM's Tokyo Datacenter
-  network_speed        = 1000    # 1 Gbps connection for low latency
-  hourly_billing       = true    # Changed to hourly billing
+resource "ibm_compute_bare_metal" "tokyo_bare_metal" {
+  hostname         = "tokyo-bm"
+  domain           = "tokyo-rentals.com"
+  datacenter       = "tok02"
+  os_reference_code = "UBUNTU_20_64"
+  network_speed    = 1000
+  hourly_billing   = true
   private_network_only = false
-  
-  # Standard baseline hardware preset for bare-metal
-  fixed_config_preset  = "S1270_8GB_2X1TBSATA_NORAID" 
 
-  # Attach your SSH padlocks to the server's root administrator account
-  ssh_key_ids = [
-    ibm_compute_ssh_key.chromebook_key.id,
-    ibm_compute_ssh_key.termux_key.id
-  ]
+  # Hardware: 48 Cores (Dual Intel Xeon Gold 6248R), 128GB RAM
+  package_key_name = "DUAL_INTEL_XEON_PROC_SCALABLE_GEN2_CASCADE_LAKE_12_DRIVES"
+  process_key_name = "INTEL_INTEL_XEON_GOLD_6248R_3_00"
+  memory           = 128
+
+  # Storage: Dual 1TB SATA Drives
+  disk_key_names   = ["HARD_DRIVE_1_00_TB_SATA_2", "HARD_DRIVE_1_00_TB_SATA_2"]
+
+  # Use existing SSH Key
+  ssh_key_ids      = [data.ibm_compute_ssh_key.termux_mobile.id]
+
+  # User Data Script (IBM Classic uses user_metadata)
+  user_metadata = <<-'EOF'
+#!/bin/bash
+set -e
+
+# Update package lists and install ZFS
+apt-get update
+apt-get install -y zfsutils-linux
+
+# Prepare the second 1TB SATA drive (/dev/sdb) for ZFS
+# Note: /dev/sda is the primary OS drive.
+wipefs -a /dev/sdb
+zpool create -f lxd-pool /dev/sdb
+
+# Initialize LXD with the ZFS storage pool
+# LXD is pre-installed as a snap on Ubuntu 20.04
+lxd init --auto --storage-pool lxd-pool --storage-backend zfs
+
+# Wait for LXD daemon to be fully initialized
+while ! lxc info > /dev/null 2>&1; do
+  echo "Waiting for LXD to start..."
+  sleep 5
+done
+
+# Function to launch and configure LXC containers
+launch_and_limit() {
+  local name=$1
+  local cores=$2
+  local memory=$3
+  echo "Provisioning $name: $cores cores, $memory RAM"
+  lxc launch ubuntu:20.04 "$name"
+  lxc config set "$name" limits.cpu "$cores"
+  lxc config set "$name" limits.memory "$memory"
+}
+
+# Deploy 9 isolated containers as per tier requirements
+# 3x Ultra instances (8 cores / 12GB RAM)
+launch_and_limit "ultra-1" 8 12GB
+launch_and_limit "ultra-2" 8 12GB
+launch_and_limit "ultra-3" 8 12GB
+
+# 3x Pro instances (4 cores / 8GB RAM)
+launch_and_limit "pro-1" 4 8GB
+launch_and_limit "pro-2" 4 8GB
+launch_and_limit "pro-3" 4 8GB
+
+# 3x Starter instances (2 cores / 4GB RAM)
+launch_and_limit "starter-1" 2 4GB
+launch_and_limit "starter-2" 2 4GB
+launch_and_limit "starter-3" 2 4GB
+
+echo "Deployment of 9 containers completed successfully."
+EOF
 }
