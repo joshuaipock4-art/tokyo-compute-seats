@@ -48,14 +48,13 @@ apt-get install -y zfsutils-linux
 # Prepare the second 1TB SATA drive (/dev/sdb) for ZFS
 # Note: /dev/sda is the primary OS drive.
 wipefs -a /dev/sdb
-zpool create -f lxd-pool /dev/sdb
 
 # Initialize LXD with the ZFS storage pool
 # LXD is pre-installed as a snap on Ubuntu 20.04
-lxd init --auto --storage-pool lxd-pool --storage-backend zfs
+/snap/bin/lxd init --auto --storage-pool lxd-pool --storage-backend zfs --storage-create-device /dev/sdb
 
 # Wait for LXD daemon to be fully initialized
-while ! lxc info > /dev/null 2>&1; do
+while ! /snap/bin/lxc info > /dev/null 2>&1; do
   echo "Waiting for LXD to start..."
   sleep 5
 done
@@ -66,9 +65,7 @@ launch_and_limit() {
   local cores=$2
   local memory=$3
   echo "Provisioning $name: $cores cores, $memory RAM"
-  lxc launch ubuntu:20.04 "$name"
-  lxc config set "$name" limits.cpu "$cores"
-  lxc config set "$name" limits.memory "$memory"
+  /snap/bin/lxc launch ubuntu:20.04 "$name" -c limits.cpu="$cores" -c limits.memory="$memory"
 }
 
 # Deploy 9 isolated containers as per tier requirements
