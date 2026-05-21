@@ -17,12 +17,12 @@ data "ibm_compute_ssh_key" "termux_mobile" {
 }
 
 resource "ibm_compute_bare_metal" "tokyo_bare_metal" {
-  hostname         = "tokyo-bm"
-  domain           = "tokyo-rentals.com"
-  datacenter       = "tok02"
-  os_reference_code = "UBUNTU_20_64"
-  network_speed    = 1000
-  hourly_billing   = true
+  hostname             = "tokyo-bm"
+  domain               = "tokyo-rentals.com"
+  datacenter           = "tok02"
+  os_reference_code    = "UBUNTU_20_64"
+  network_speed        = 1000
+  hourly_billing       = true
   private_network_only = false
 
   # Hardware: 48 Cores (Dual Intel Xeon Gold 6248R), 128GB RAM
@@ -31,11 +31,59 @@ resource "ibm_compute_bare_metal" "tokyo_bare_metal" {
   memory           = 128
 
   # Storage: Dual 1TB SATA Drives
-  disk_key_names   = ["HARD_DRIVE_1_00_TB_SATA_2", "HARD_DRIVE_1_00_TB_SATA_2"]
+  disk_key_names = ["HARD_DRIVE_1_00_TB_SATA_2", "HARD_DRIVE_1_00_TB_SATA_2"]
 
   # Use existing SSH Key
-  ssh_key_ids      = [data.ibm_compute_ssh_key.termux_mobile.id]
+  ssh_key_ids = [data.ibm_compute_ssh_key.termux_mobile.id]
 
   # User Data Script (IBM Classic uses user_metadata)
-  user_metadata = file("${path.module}/scripts/setup.sh")
+  user_metadata = <<-EOF
+#!/bin/bash
+set -e
+
+# Function to launch and configure LXC containers
+launch_and_limit() {
+  local name=$1
+  local cores=$2
+  local memory=$3
+  echo "Provisioning $name: $cores cores, $memory RAM"
+  /snap/bin/lxc launch ubuntu:20.04 "$name" -c limits.cpu="$cores" -c limits.memory="$memory"
+}
+
+main() {
+  # Update package lists and install ZFS
+  apt-get update
+  apt-get install -y zfsutils-linux
+
+  # Prepare the second 1TB SATA drive (/dev/sdb) for ZFS
+  # Note: /dev/sda is the primary OS drive.
+  wipefs -a /dev/sdb
+
+  # Initialize LXD with the ZFS storage pool
+  # LXD is pre-installed as a snap on Ubuntu 20.04
+  /snap/bin/lxd init --auto --storage-pool lxd-pool --storage-backend zfs --storage-create-device /dev/sdb
+
+  # Wait for LXD daemon to be fully initialized
+  while ! /snap/bin/lxc info > /dev/null 2>&1; do
+    echo "Waiting for LXD to start..."
+    sleep 5
+  done
+
+  # Deploy 9 isolated containers as per tier requirements
+  # 3x Ultra instances (8 cores / 12GB RAM)
+  for i in {1..3}; do launch_and_limit "ultra-$i" 8 12GB; done
+
+  # 3x Pro instances (4 cores / 8GB RAM)
+  for i in {1..3}; do launch_and_limit "pro-$i" 4 8GB; done
+
+  # 3x Starter instances (2 cores / 4GB RAM)
+  for i in {1..3}; do launch_and_limit "starter-$i" 2 4GB; done
+
+  echo "Deployment of 9 containers completed successfully."
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main
+fi
+EOF
 }
