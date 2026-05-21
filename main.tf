@@ -37,7 +37,7 @@ resource "ibm_compute_bare_metal" "tokyo_bare_metal" {
   ssh_key_ids      = [data.ibm_compute_ssh_key.termux_mobile.id]
 
   # User Data Script (IBM Classic uses user_metadata)
-  user_metadata = <<-'EOF'
+  user_metadata = <<-EOF
 #!/bin/bash
 set -e
 
