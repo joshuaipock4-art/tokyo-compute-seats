@@ -17,12 +17,12 @@ data "ibm_compute_ssh_key" "termux_mobile" {
 }
 
 resource "ibm_compute_bare_metal" "tokyo_bare_metal" {
-  hostname         = "tokyo-bm"
-  domain           = "tokyo-rentals.com"
-  datacenter       = "tok02"
-  os_reference_code = "UBUNTU_20_64"
-  network_speed    = 1000
-  hourly_billing   = true
+  hostname             = "tokyo-bm"
+  domain               = "tokyo-rentals.com"
+  datacenter           = "tok02"
+  os_reference_code    = "UBUNTU_20_64"
+  network_speed        = 1000
+  hourly_billing       = true
   private_network_only = false
 
   # Hardware: 48 Cores (Dual Intel Xeon Gold 6248R), 128GB RAM
@@ -31,10 +31,10 @@ resource "ibm_compute_bare_metal" "tokyo_bare_metal" {
   memory           = 128
 
   # Storage: Dual 1TB SATA Drives
-  disk_key_names   = ["HARD_DRIVE_1_00_TB_SATA_2", "HARD_DRIVE_1_00_TB_SATA_2"]
+  disk_key_names = ["HARD_DRIVE_1_00_TB_SATA_2", "HARD_DRIVE_1_00_TB_SATA_2"]
 
   # Use existing SSH Key
-  ssh_key_ids      = [data.ibm_compute_ssh_key.termux_mobile.id]
+  ssh_key_ids = [data.ibm_compute_ssh_key.termux_mobile.id]
 
   # User Data Script (IBM Classic uses user_metadata)
   user_metadata = <<-EOF
@@ -73,19 +73,13 @@ launch_and_limit() {
 
 # Deploy 9 isolated containers as per tier requirements
 # 3x Ultra instances (8 cores / 12GB RAM)
-launch_and_limit "ultra-1" 8 12GB
-launch_and_limit "ultra-2" 8 12GB
-launch_and_limit "ultra-3" 8 12GB
+for i in {1..3}; do launch_and_limit "ultra-$i" 8 12GB; done
 
 # 3x Pro instances (4 cores / 8GB RAM)
-launch_and_limit "pro-1" 4 8GB
-launch_and_limit "pro-2" 4 8GB
-launch_and_limit "pro-3" 4 8GB
+for i in {1..3}; do launch_and_limit "pro-$i" 4 8GB; done
 
 # 3x Starter instances (2 cores / 4GB RAM)
-launch_and_limit "starter-1" 2 4GB
-launch_and_limit "starter-2" 2 4GB
-launch_and_limit "starter-3" 2 4GB
+for i in {1..3}; do launch_and_limit "starter-$i" 2 4GB; done
 
 echo "Deployment of 9 containers completed successfully."
 EOF
