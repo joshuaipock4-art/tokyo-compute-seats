@@ -1,6 +1,40 @@
 #!/bin/bash
 set -e
 
+# PATH setup to ensure snap binaries (/snap/bin) are accessible
+export PATH=$PATH:/snap/bin
+
+# Function to safely locate a secondary, non-root disk for storage
+get_target_disk() {
+  # Find the disk device holding the root filesystem (/)
+  local root_dev
+  root_dev=$(findmnt -n -o SOURCE / 2>/dev/null || true)
+  local root_disk=""
+  if [[ -n "$root_dev" ]]; then
+    root_disk=$(lsblk -no PKNAME "$root_dev" 2>/dev/null || true)
+    if [[ -z "$root_disk" ]]; then
+      # If root_dev was a full disk or PKNAME returned empty, extract base disk name
+      root_disk=$(echo "$root_dev" | sed -E "s/p?[0-9]+$//; s|^/dev/||")
+    fi
+  fi
+
+  # Find disk devices of type "disk" that are not the root disk
+  local target_disk=""
+  for disk in $(lsblk -dn -o NAME,TYPE 2>/dev/null | awk '$2=="disk" {print $1}'); do
+    if [[ "$disk" != "$root_disk" ]]; then
+      target_disk="/dev/$disk"
+      break
+    fi
+  done
+
+  if [[ -z "$target_disk" ]]; then
+    echo "Error: Could not identify an available secondary disk for ZFS storage pool." >&2
+    return 1
+  fi
+
+  echo "$target_disk"
+}
+
 # Function to launch and configure LXC containers
 launch_and_limit() {
   local name=$1
@@ -17,10 +51,19 @@ main() {
   apt-get update
   apt-get install -y zfsutils-linux
 
-  # Prepare the second 1TB SATA drive (/dev/sdb) for ZFS
-  # Note: /dev/sda is the primary OS drive.
-  wipefs -a /dev/sdb
-  zpool create -f lxd-pool /dev/sdb
+  # Dynamically discover an available secondary disk (avoiding the OS root disk)
+  local target_disk
+  target_disk=$(get_target_disk)
+  if [[ -z "$target_disk" ]]; then
+    echo "Aborting setup: No suitable secondary disk found." >&2
+    return 1
+  fi
+
+  echo "Target disk identified for ZFS storage: $target_disk"
+
+  # Prepare the target disk for ZFS
+  wipefs -a "$target_disk"
+  zpool create -f lxd-pool "$target_disk"
 
   # Initialize LXD with the ZFS storage pool
   # LXD is pre-installed as a snap on Ubuntu 20.04
