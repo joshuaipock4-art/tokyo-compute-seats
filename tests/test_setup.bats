@@ -33,18 +33,14 @@ teardown() {
 }
 
 @test "launch_and_limit fails if arguments are missing" {
-  # This tests the behavior when fewer arguments are provided.
-  # Although the script just uses empty variables right now, let's see how it behaves.
   run launch_and_limit "test-container-2"
 
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"Provisioning test-container-2:  cores,  RAM"* ]]
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Error: launch_and_limit requires 3 arguments"* ]]
 
-  # Read mock log
+  # Read mock log to confirm lxc commands were not executed
   run cat "$LXC_MOCK_LOG"
-  [[ "${lines[0]}" == "lxc launch ubuntu:20.04 test-container-2" ]]
-  [[ "${lines[1]}" == "lxc config set test-container-2 limits.cpu " ]]
-  [[ "${lines[2]}" == "lxc config set test-container-2 limits.memory " ]]
+  [ -z "$output" ]
 }
 
 @test "launch_and_limit works with edge case inputs" {
