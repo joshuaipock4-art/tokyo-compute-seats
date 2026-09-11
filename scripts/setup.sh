@@ -7,9 +7,9 @@ launch_and_limit() {
   local cores=$2
   local memory=$3
   echo "Provisioning $name: $cores cores, $memory RAM"
-  lxc launch ubuntu:20.04 "$name"
-  lxc config set "$name" limits.cpu "$cores"
-  lxc config set "$name" limits.memory "$memory"
+  lxc launch ubuntu:20.04 "$name" || return $?
+  lxc config set "$name" limits.cpu "$cores" || return $?
+  lxc config set "$name" limits.memory "$memory" || return $?
 }
 
 main() {

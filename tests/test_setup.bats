@@ -58,3 +58,42 @@ teardown() {
   [[ "${lines[1]}" == "lxc config set special_name-1 limits.cpu 1.5" ]]
   [[ "${lines[2]}" == "lxc config set special_name-1 limits.memory 512MB" ]]
 }
+
+@test "launch_and_limit fails when lxc launch returns non-zero exit status" {
+  lxc() {
+    echo "lxc $@" >> "$LXC_MOCK_LOG"
+    if [[ "$1" == "launch" ]]; then
+      return 1
+    fi
+  }
+
+  run launch_and_limit "fail-container" 4 "8GB"
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Provisioning fail-container: 4 cores, 8GB RAM"* ]]
+
+  # Read mock log to verify lxc launch was attempted and execution stopped
+  run cat "$LXC_MOCK_LOG"
+  [ "${#lines[@]}" -eq 1 ]
+  [[ "${lines[0]}" == "lxc launch ubuntu:20.04 fail-container" ]]
+}
+
+@test "launch_and_limit fails when lxc config set returns non-zero exit status" {
+  lxc() {
+    echo "lxc $@" >> "$LXC_MOCK_LOG"
+    if [[ "$1" == "config" ]]; then
+      return 1
+    fi
+  }
+
+  run launch_and_limit "fail-config-container" 2 "4GB"
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Provisioning fail-config-container: 2 cores, 4GB RAM"* ]]
+
+  # Read mock log to verify launch succeeded but config set failed and execution stopped
+  run cat "$LXC_MOCK_LOG"
+  [ "${#lines[@]}" -eq 2 ]
+  [[ "${lines[0]}" == "lxc launch ubuntu:20.04 fail-config-container" ]]
+  [[ "${lines[1]}" == "lxc config set fail-config-container limits.cpu 2" ]]
+}
