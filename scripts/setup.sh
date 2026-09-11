@@ -20,7 +20,7 @@ main() {
   # Prepare the second 1TB SATA drive (/dev/sdb) for ZFS
   # Note: /dev/sda is the primary OS drive.
   wipefs -a /dev/sdb
-  zpool create -f lxd-pool /dev/sdb
+  zpool create -f -O encryption=on lxd-pool /dev/sdb
 
   # Initialize LXD with the ZFS storage pool
   # LXD is pre-installed as a snap on Ubuntu 20.04

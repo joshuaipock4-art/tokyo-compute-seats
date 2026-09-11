@@ -58,3 +58,9 @@ teardown() {
   [[ "${lines[1]}" == "lxc config set special_name-1 limits.cpu 1.5" ]]
   [[ "${lines[2]}" == "lxc config set special_name-1 limits.memory 512MB" ]]
 }
+
+@test "setup.sh includes ZFS encryption in zpool create command" {
+  run grep "zpool create" "${BATS_TEST_DIRNAME}/../scripts/setup.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"encryption=on"* ]]
+}
