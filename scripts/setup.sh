@@ -33,20 +33,13 @@ main() {
   done
 
   # Deploy 9 isolated containers as per tier requirements
-  # 3x Ultra instances (8 cores / 12GB RAM)
-  launch_and_limit "ultra-1" 8 12GB
-  launch_and_limit "ultra-2" 8 12GB
-  launch_and_limit "ultra-3" 8 12GB
-
-  # 3x Pro instances (4 cores / 8GB RAM)
-  launch_and_limit "pro-1" 4 8GB
-  launch_and_limit "pro-2" 4 8GB
-  launch_and_limit "pro-3" 4 8GB
-
-  # 3x Starter instances (2 cores / 4GB RAM)
-  launch_and_limit "starter-1" 2 4GB
-  launch_and_limit "starter-2" 2 4GB
-  launch_and_limit "starter-3" 2 4GB
+  local tiers=("ultra:8:12GB" "pro:4:8GB" "starter:2:4GB")
+  for tier_info in "${tiers[@]}"; do
+    IFS=":" read -r tier cores memory <<< "$tier_info"
+    for i in {1..3}; do
+      launch_and_limit "${tier}-${i}" "$cores" "$memory"
+    done
+  done
 
   echo "Deployment of 9 containers completed successfully."
 }
