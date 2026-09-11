@@ -58,3 +58,41 @@ teardown() {
   [[ "${lines[1]}" == "lxc config set special_name-1 limits.cpu 1.5" ]]
   [[ "${lines[2]}" == "lxc config set special_name-1 limits.memory 512MB" ]]
 }
+
+@test "get_target_disk finds non-root secondary disk" {
+  findmnt() {
+    echo "/dev/sda1"
+  }
+  export -f findmnt
+
+  lsblk() {
+    case "$*" in
+      *PKNAME*) echo "sda" ;;
+      *NAME,TYPE*) printf "sda disk\nsdb disk\n" ;;
+    esac
+  }
+  export -f lsblk
+
+  run get_target_disk
+  [ "$status" -eq 0 ]
+  [ "$output" = "/dev/sdb" ]
+}
+
+@test "get_target_disk returns error if no secondary disk is available" {
+  findmnt() {
+    echo "/dev/sda1"
+  }
+  export -f findmnt
+
+  lsblk() {
+    case "$*" in
+      *PKNAME*) echo "sda" ;;
+      *NAME,TYPE*) printf "sda disk\n" ;;
+    esac
+  }
+  export -f lsblk
+
+  run get_target_disk
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Error: Could not identify an available secondary disk"* ]]
+}
