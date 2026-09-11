@@ -6,6 +6,12 @@ launch_and_limit() {
   local name=$1
   local cores=$2
   local memory=$3
+
+  if [ -z "$name" ] || [ -z "$cores" ] || [ -z "$memory" ]; then
+    echo "Error: launch_and_limit requires 3 arguments: <name> <cores> <memory>" >&2
+    return 1
+  fi
+
   echo "Provisioning $name: $cores cores, $memory RAM"
   lxc launch ubuntu:20.04 "$name"
   lxc config set "$name" limits.cpu "$cores"
